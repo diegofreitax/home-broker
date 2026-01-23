@@ -4,6 +4,7 @@ import com.treinamento.home_broker.DTO.OrderCreateRequestDTO;
 import com.treinamento.home_broker.domain.enums.OrderStatus;
 import com.treinamento.home_broker.entities.Order;
 import com.treinamento.home_broker.repositories.OrderRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,9 +12,11 @@ import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderMatchingService orderMatchingService;
 
     public void createOrder(OrderCreateRequestDTO dto){
         Order order = Order.builder()
@@ -29,5 +32,6 @@ public class OrderService {
                 .updatedAt(Instant.now())
                 .build();
         orderRepository.save(order);
+        orderMatchingService.matchOrder(order);
     }
 }
