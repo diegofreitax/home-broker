@@ -23,6 +23,9 @@ public class UserWallet {
     @Column(name = "stock_id", nullable = false)
     private Long stockId;
 
-    @Column(name = "amount", nullable = false)
-    private Integer amount;
+    @Column(name = "available_amount", nullable = false)
+    private int availableAmount;
+
+    @Column(name = "reserved_amount", nullable = false)
+    private int reservedAmount;
 }

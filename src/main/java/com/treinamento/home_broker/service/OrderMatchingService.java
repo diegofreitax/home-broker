@@ -4,8 +4,10 @@ import com.treinamento.home_broker.domain.enums.OrderStatus;
 import com.treinamento.home_broker.domain.enums.OrderType;
 import com.treinamento.home_broker.entities.Order;
 import com.treinamento.home_broker.entities.Trade;
+import com.treinamento.home_broker.entities.UserWallet;
 import com.treinamento.home_broker.repositories.OrderRepository;
 import com.treinamento.home_broker.repositories.TradesRepository;
+import com.treinamento.home_broker.repositories.UserWalletRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,84 +23,99 @@ public class OrderMatchingService {
 
     private final OrderRepository orderRepository;
     private final TradesRepository tradesRepository;
+    private final UserWalletRepository userWalletRepository;
 
     @Transactional
-    public void matchOrder(Order orderRecebida){
+    //metodo de Match de Orders passando Order (entidade) como parametro
+    public void matchOrder(Order orderReceived) {
+    // Declarando a variavel do tipo Lista de Order com nome orders
         List<Order> orders;
-
-        if (orderRecebida.getType() == OrderType.BUY) {
-            orders = orderRepository.findSellOrdersToMatch(orderRecebida.getStockId());
-        } else {
-            orders =orderRepository.findBuyOrdersToMatch(orderRecebida.getStockId());
+        // Se a orderRecebida passada no parametro do metodo for do tipo BUY
+        if (orderReceived.getType() == OrderType.BUY) {
+            // a variavel orders declarada vai buscar no repositorio (JPA - DB) pela query definida no find... que busca orders SELL
+            orders = orderRepository.findSellOrdersToMatch(orderReceived.getStockId());
+        } else { // se for do tipo SELL vai fazer a busca com base na query definida no find.. que busca orders BUY
+            orders = orderRepository.findBuyOrdersToMatch(orderReceived.getStockId());
         }
+        // Portanto, para utilizar metodos diferentes dos padrões do repositorio, precisamos definir a query do SQL ou os parametros de busca.
 
+        // loop de Variavel do tipo Order passada como order vai iterar na variavel List que foi definida como orders ->
         for (Order order : orders) {
+            // declarar variavel boolean de priceMatch para realizar o match de preço
             boolean priceMatch;
-            if (orderRecebida.getType() == OrderType.BUY){
-                priceMatch = order.getUnitPrice().compareTo(orderRecebida.getUnitPrice()) <= 0;
-            }else{
-                priceMatch = order.getUnitPrice().compareTo(orderRecebida.getUnitPrice()) >= 0;
-            } if (!priceMatch) {
+            // se o tipo da orderRecebida no metodo for BUY
+            if (orderReceived.getType() == OrderType.BUY) {
+                // a order de SELL buscada no repositorio precisa ter preço unitario menor ou igual ao da order de BUY para dar match
+                priceMatch = order.getUnitPrice().compareTo(orderReceived.getUnitPrice()) <= 0;
+            } else {
+                // se for do tipo SELL, a order BUY buscada precisa ter preço maior ou igual ao da order SELL para dar match
+                priceMatch = order.getUnitPrice().compareTo(orderReceived.getUnitPrice()) >= 0;
+            }
+            // Se o Match de preço for diferente da regra definida, para o Loop. Pois para o BUY não existe SELL com valor <= e para o SELL nao tem BUY com valor >=
+            if (!priceMatch) {
                 break;
             } else {
 
-            int executedAmount = Math.min(orderRecebida.getRemainingAmount(), order.getRemainingAmount());
+                int executedAmount = Math.min(orderReceived.getRemainingAmount(), order.getRemainingAmount());
 
-            orderRecebida.setRemainingAmount(orderRecebida.getRemainingAmount() - executedAmount);
-            order.setRemainingAmount(order.getRemainingAmount() - executedAmount);
+                orderReceived.setRemainingAmount(orderReceived.getRemainingAmount() - executedAmount);
+                order.setRemainingAmount(order.getRemainingAmount() - executedAmount);
 
-            orderRecebida.setExecutedAmount(orderRecebida.getExecutedAmount() + executedAmount);
-            order.setExecutedAmount(order.getExecutedAmount() + executedAmount);
+                orderReceived.setExecutedAmount(orderReceived.getExecutedAmount() + executedAmount);
+                order.setExecutedAmount(order.getExecutedAmount() + executedAmount);
 
-            orderRecebida.setStatus(orderRecebida.getRemainingAmount() == 0 ? OrderStatus.EXECUTED : OrderStatus.PARTIAL);
-            order.setStatus(order.getRemainingAmount() == 0 ? OrderStatus.EXECUTED : OrderStatus.PARTIAL);
+                orderReceived.setStatus(orderReceived.getRemainingAmount() == 0 ? OrderStatus.EXECUTED : OrderStatus.PARTIAL);
+                order.setStatus(order.getRemainingAmount() == 0 ? OrderStatus.EXECUTED : OrderStatus.PARTIAL);
 
-            Trade trade = new Trade(
+                Trade trade = new Trade(
                         null,
-                        orderRecebida.getType() == OrderType.BUY ? orderRecebida.getId() : order.getId(),
-                        orderRecebida.getType() == OrderType.SELL ? orderRecebida.getId() : order.getId(),
-                        orderRecebida.getStockId(),
+                        orderReceived.getType() == OrderType.BUY ? orderReceived.getId() : order.getId(),
+                        orderReceived.getType() == OrderType.SELL ? orderReceived.getId() : order.getId(),
+                        orderReceived.getStockId(),
                         executedAmount,
                         order.getUnitPrice(),
                         Instant.now()
-            );
-            tradesRepository.save(trade);
-            }
+                );
 
-            if (orderRecebida.getRemainingAmount() == 0) {
-                break;
+                tradesRepository.save(trade);
+                orderRepository.save(order);
+                orderRepository.save(orderReceived);
+
+                Order buyOrder = orderRepository.findById(trade.getBuyOrderId()).orElseThrow();
+                Long buyerOrderId = buyOrder.getUserId();
+
+                Order sellOrder = orderRepository.findById(trade.getSellOrderId()).orElseThrow();
+                Long sellerOrderId = sellOrder.getUserId();
+
+                UserWallet walletBuyer = userWalletRepository.findByUserIdAndStockId(buyerOrderId, trade.getStockId());
+                if (walletBuyer == null) {
+                    walletBuyer = new UserWallet(
+                            null,
+                            buyerOrderId,
+                            trade.getStockId(),
+                            trade.getQuantity(),
+                            0
+                    );
+                } else {
+                   walletBuyer.setAvailableAmount((walletBuyer.getAvailableAmount() + trade.getQuantity()));
+                }
+                userWalletRepository.save(walletBuyer);
+
+                UserWallet walletSeller = userWalletRepository.findByUserIdAndStockId(sellerOrderId, trade.getStockId());
+                int sellerExecutedAmount = walletSeller.getReservedAmount() - trade.getQuantity();
+
+                if (sellerExecutedAmount <= 0){
+                    walletSeller.setReservedAmount(walletSeller.getReservedAmount() - trade.getQuantity());
+                    userWalletRepository.save(walletSeller);
+                } else {
+                    walletSeller.setReservedAmount(sellerExecutedAmount);
+                    userWalletRepository.save(walletSeller);
+                }
+
+                if (orderReceived.getRemainingAmount() == 0) {
+                    break;
+                }
             }
         }
-            //int remaingAmount;
-
-                /*if(Objects.equals(orderRecebida.getRemainingAmount(), order.getRemainingAmount())){
-                    remainingAmount = 0;
-                            order.setRemainingAmount(remainingAmount);
-                            orderRecebida.setRemainingAmount(remainingAmount);
-                            order.setExecutedAmount(order.getRemainingAmount());
-                            orderRecebida.setExecutedAmount(orderRecebida.getRemainingAmount());
-                } else if (orderRecebida.getRemainingAmount() > order.getRemainingAmount()){
-                    remainingAmount = orderRecebida.getRemainingAmount() - order.getRemainingAmount();
-                        order.setRemainingAmount(0);
-                        orderRecebida.setRemainingAmount(remainingAmount);
-                        order.setExecutedAmount(order.getRemainingAmount());
-                        orderRecebida.setExecutedAmount(orderRecebida.getTotalAmount() - remainingAmount);
-
-                } else {
-                    remainingAmount = order.getRemainingAmount() - orderRecebida.getRemainingAmount();
-                    order.setRemainingAmount(remainingAmount);
-                    orderRecebida.setRemainingAmount(0);
-                    order.setExecutedAmount(orderRecebida.getTotalAmount() - orderRecebida.getRemainingAmount());
-                    orderRecebida.setExecutedAmount(orderRecebida.getRemainingAmount());
-
-                }
-            } if (orderRecebida.getRemainingAmount() == 0 ) {
-                orderRecebida.setStatus(OrderStatus.EXECUTED);
-            } if (order.getRemainingAmount() == 0) {
-                order.setStatus(OrderStatus.EXECUTED);
-            } else {
-                orderRecebida.setStatus(OrderStatus.PARTIAL);
-                order.setStatus(OrderStatus.PARTIAL);
-            }*/
     }
 }
