@@ -4,10 +4,9 @@ import com.treinamento.home_broker.DTO.OrderCreateRequestDTO;
 import com.treinamento.home_broker.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -21,4 +20,11 @@ public class OrderController {
         orderService.createOrder(request);
         return ResponseEntity.status(201).build();
     }
+
+    @PutMapping("/orders/{orderId}/cancel")
+    public ResponseEntity<Void> cancelOrder(@PathVariable UUID orderId) {
+        orderService.cancelOrder(orderId);
+        return ResponseEntity.ok().build();
+    }
+
 }

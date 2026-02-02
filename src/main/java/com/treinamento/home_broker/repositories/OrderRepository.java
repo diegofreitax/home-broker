@@ -33,4 +33,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
         ORDER BY o.unitPrice DESC, o.createdAt ASC
     """)
     List<Order> findBuyOrdersToMatch(Long stockId);
+
+    Order findOrderByIdAndUserId(UUID orderId, Long userID);
+
+    Order findOrderById(UUID id);
 }

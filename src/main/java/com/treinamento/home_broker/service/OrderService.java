@@ -1,6 +1,7 @@
 package com.treinamento.home_broker.service;
 
 import com.treinamento.home_broker.DTO.OrderCreateRequestDTO;
+import com.treinamento.home_broker.DTO.OrderCancelRequestDTO;
 import com.treinamento.home_broker.domain.enums.OrderStatus;
 import com.treinamento.home_broker.domain.enums.OrderType;
 import com.treinamento.home_broker.entities.Order;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -49,5 +51,27 @@ public class OrderService {
                 .build();
         orderRepository.save(order);
         orderMatchingService.matchOrder(order);
+    }
+    @Transactional
+    public void cancelOrder(UUID orderId){
+        Order userOrder = orderRepository.findOrderById(orderId);
+        if (userOrder.getStatus() == OrderStatus.CANCELED || userOrder.getStatus() == OrderStatus.EXECUTED) {
+            throw new IllegalStateException("Status atual não permite cancelamento");
+        }
+        int remainingAmount = userOrder.getRemainingAmount();
+        if (userOrder.getStatus() == OrderStatus.OPEN || userOrder.getStatus() == OrderStatus.PARTIAL) {
+            if (userOrder.getType() != OrderType.BUY) {
+                   UserWallet userWallet = userWalletRepository.findByUserIdAndStockId(userOrder.getUserId(), userOrder.getStockId());
+                   if (userWallet.getReservedAmount() < remainingAmount) {
+                       throw new IllegalStateException("Reserva inconsistente");
+                   }
+                    userWallet.setReservedAmount(userWallet.getReservedAmount() - remainingAmount);
+                    userWallet.setAvailableAmount(userWallet.getAvailableAmount() + remainingAmount);
+                    userWalletRepository.save(userWallet);
+                }
+            }
+            userOrder.setStatus(OrderStatus.CANCELED);
+            userOrder.setUpdatedAt(Instant.now());
+            orderRepository.save(userOrder);
     }
 }
