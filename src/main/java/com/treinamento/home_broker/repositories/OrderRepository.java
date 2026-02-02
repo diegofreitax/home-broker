@@ -34,7 +34,5 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     """)
     List<Order> findBuyOrdersToMatch(Long stockId);
 
-    Order findOrderByIdAndUserId(UUID orderId, Long userID);
-
     Order findOrderById(UUID id);
 }
