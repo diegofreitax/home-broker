@@ -20,7 +20,7 @@ import java.util.UUID;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final OrderMatchingService orderMatchingService;
+    private final TradeService tradeService;
     private final UserWalletRepository userWalletRepository;
 
     public void createOrder(OrderCreateRequestDTO dto){
@@ -49,7 +49,7 @@ public class OrderService {
                 .updatedAt(Instant.now())
                 .build();
         orderRepository.save(order);
-        orderMatchingService.matchOrder(order);
+        tradeService.matchOrder(order);
     }
     @Transactional
     public void cancelOrder(UUID orderId){

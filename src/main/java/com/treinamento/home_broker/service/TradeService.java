@@ -18,7 +18,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class OrderMatchingService {
+public class TradeService {
 
 
     private final OrderRepository orderRepository;
