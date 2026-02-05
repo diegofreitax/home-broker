@@ -35,4 +35,5 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findBuyOrdersToMatch(Long stockId);
 
     Order findOrderById(UUID id);
+    Order findUserId(Long userId);
 }
