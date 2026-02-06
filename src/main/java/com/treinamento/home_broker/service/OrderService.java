@@ -11,6 +11,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -22,7 +23,9 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final TradeService tradeService;
     private final UserWalletRepository userWalletRepository;
+    private final UserBalanceService userBalanceService;
 
+    @Transactional
     public void createOrder(OrderCreateRequestDTO dto){
 
         UserWallet userWallet = userWalletRepository.findByUserIdAndStockId(dto.getUserId(), dto.getStockId());
@@ -48,7 +51,11 @@ public class OrderService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
+
+        BigDecimal orderTotalValue = order.getUnitPrice().multiply(BigDecimal.valueOf(order.getTotalAmount()));
+        userBalanceService.validateBalance(order.getUserId(), orderTotalValue);
         orderRepository.save(order);
+        userBalanceService.reserveBalance(order.getUserId(), orderTotalValue);
         tradeService.matchOrder(order);
     }
     @Transactional
@@ -69,6 +76,10 @@ public class OrderService {
                     userWalletRepository.save(userWallet);
                 }
             }
+        if (userOrder.getType() == OrderType.BUY) {
+            BigDecimal orderTotalValue = userOrder.getUnitPrice().multiply(BigDecimal.valueOf(userOrder.getRemainingAmount()));
+            userBalanceService.releaseBalance(userOrder.getUserId(), orderTotalValue);
+        }
             userOrder.setStatus(OrderStatus.CANCELED);
             userOrder.setUpdatedAt(Instant.now());
             orderRepository.save(userOrder);

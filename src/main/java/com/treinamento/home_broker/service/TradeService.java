@@ -12,6 +12,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -24,34 +25,26 @@ public class TradeService {
     private final OrderRepository orderRepository;
     private final TradesRepository tradesRepository;
     private final UserWalletRepository userWalletRepository;
+    private final UserBalanceService userBalanceService;
 
     @Transactional
-    //metodo de Match de Orders passando Order (entidade) como parametro
     public void matchOrder(Order orderReceived) {
-    // Declarando a variavel do tipo Lista de Order com nome orders
+
         List<Order> orders;
-        // Se a orderRecebida passada no parametro do metodo for do tipo BUY
+
         if (orderReceived.getType() == OrderType.BUY) {
-            // a variavel orders declarada vai buscar no repositorio (JPA - DB) pela query definida no find... que busca orders SELL
             orders = orderRepository.findSellOrdersToMatch(orderReceived.getStockId());
-        } else { // se for do tipo SELL vai fazer a busca com base na query definida no find.. que busca orders BUY
+        } else {
             orders = orderRepository.findBuyOrdersToMatch(orderReceived.getStockId());
         }
-        // Portanto, para utilizar metodos diferentes dos padrões do repositorio, precisamos definir a query do SQL ou os parametros de busca.
 
-        // loop de Variavel do tipo Order passada como order vai iterar na variavel List que foi definida como orders ->
         for (Order order : orders) {
-            // declarar variavel boolean de priceMatch para realizar o match de preço
             boolean priceMatch;
-            // se o tipo da orderRecebida no metodo for BUY
             if (orderReceived.getType() == OrderType.BUY) {
-                // a order de SELL buscada no repositorio precisa ter preço unitario menor ou igual ao da order de BUY para dar match
                 priceMatch = order.getUnitPrice().compareTo(orderReceived.getUnitPrice()) <= 0;
             } else {
-                // se for do tipo SELL, a order BUY buscada precisa ter preço maior ou igual ao da order SELL para dar match
                 priceMatch = order.getUnitPrice().compareTo(orderReceived.getUnitPrice()) >= 0;
             }
-            // Se o Match de preço for diferente da regra definida, para o Loop. Pois para o BUY não existe SELL com valor <= e para o SELL nao tem BUY com valor >=
             if (!priceMatch) {
                 break;
             } else {
@@ -102,15 +95,19 @@ public class TradeService {
                 userWalletRepository.save(walletBuyer);
 
                 UserWallet walletSeller = userWalletRepository.findByUserIdAndStockId(sellerOrderId, trade.getStockId());
-                int sellerExecutedAmount = walletSeller.getReservedAmount() - trade.getQuantity();
 
-                if (sellerExecutedAmount <= 0){
-                    walletSeller.setReservedAmount(walletSeller.getReservedAmount() - trade.getQuantity());
-                    userWalletRepository.save(walletSeller);
-                } else {
-                    walletSeller.setReservedAmount(sellerExecutedAmount);
-                    userWalletRepository.save(walletSeller);
+                int reserved = walletSeller.getReservedAmount();
+                int executed = trade.getQuantity();
+
+                if (reserved < executed){
+                    throw new IllegalStateException("Valor reservado no balance insuficiente para executar");
                 }
+                walletSeller.setReservedAmount(reserved - executed);
+                userWalletRepository.save(walletSeller);
+
+                BigDecimal tradeValue = trade.getPrice().multiply(BigDecimal.valueOf(trade.getQuantity()));
+                userBalanceService.debitReservedBalance(buyOrder.getUserId(), tradeValue);
+                userBalanceService.creditAvailableBalance(sellOrder.getUserId(), tradeValue);
 
                 if (orderReceived.getRemainingAmount() == 0) {
                     break;

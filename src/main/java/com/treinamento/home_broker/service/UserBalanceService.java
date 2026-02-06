@@ -33,6 +33,7 @@ public class UserBalanceService {
 
     }
 
+    @Transactional
     public void validateBalance(Long userId, BigDecimal requiredAmount){
 
         if(requiredAmount.compareTo(BigDecimal.ZERO) <= 0){
@@ -91,7 +92,7 @@ public class UserBalanceService {
     }
 
     @Transactional
-    public void debitBalance(Long userId, BigDecimal debitedAmount){
+    public void debitReservedBalance(Long userId, BigDecimal debitedAmount){
 
         if(debitedAmount.compareTo(BigDecimal.ZERO) <= 0){
             throw new IllegalStateException("Valor invalido");
@@ -109,7 +110,7 @@ public class UserBalanceService {
     }
 
     @Transactional
-    public void creditedBalance(Long userId, BigDecimal creditedAmount){
+    public void creditAvailableBalance(Long userId, BigDecimal creditedAmount){
 
         if(creditedAmount.compareTo(BigDecimal.ZERO) <= 0){
             throw new IllegalStateException("Valor invalido");
