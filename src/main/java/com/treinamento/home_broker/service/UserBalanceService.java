@@ -1,5 +1,6 @@
 package com.treinamento.home_broker.service;
 
+import com.treinamento.home_broker.DTO.UserBalanceDepositResponseDTO;
 import com.treinamento.home_broker.entities.UserBalance;
 import com.treinamento.home_broker.entities.Users;
 import com.treinamento.home_broker.repositories.UserBalanceRepository;
@@ -111,16 +112,26 @@ public class UserBalanceService {
     public void creditAvailableBalance(Long userId, BigDecimal creditedAmount){
 
         if(creditedAmount.compareTo(BigDecimal.ZERO) <= 0){
-            throw new IllegalStateException("Valor invalido");
+            throw new IllegalArgumentException("Deposit amount must be greater than zero");
         }
 
         UserBalance userBalance = userBalanceRepository.findByUserId(userId);
         if(userBalance == null){
-            throw new IllegalStateException("Saldo não encontrado");
+            throw new IllegalStateException("User balance not found");
         }
 
         userBalance.setAvailableBalance(userBalance.getAvailableBalance().add(creditedAmount));
 
         userBalanceRepository.save(userBalance);
+    }
+
+    public UserBalanceDepositResponseDTO checkBalance (Long userId){
+
+        UserBalance userBalance = userBalanceRepository.findByUserId(userId);
+
+        if (userBalance == null){
+            throw new IllegalStateException("User balance not found");
+        }
+        return new UserBalanceDepositResponseDTO(userBalance.getAvailableBalance(), userBalance.getReservedBalance());
     }
 }
