@@ -51,11 +51,12 @@ public class OrderService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
-
         BigDecimal orderTotalValue = order.getUnitPrice().multiply(BigDecimal.valueOf(order.getTotalAmount()));
-        userBalanceService.validateBalance(order.getUserId(), orderTotalValue);
+        if (order.getType() == OrderType.BUY) {
+            userBalanceService.validateBalance(order.getUserId(), orderTotalValue);
+            userBalanceService.reserveBalance(order.getUserId(), orderTotalValue);
+        }
         orderRepository.save(order);
-        userBalanceService.reserveBalance(order.getUserId(), orderTotalValue);
         tradeService.matchOrder(order);
     }
     @Transactional

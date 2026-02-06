@@ -62,8 +62,6 @@ public class UserBalanceService {
             throw new IllegalStateException("Saldo não encontrado");
         }
 
-        validateBalance(userId, reservedAmount);
-
         userBalance.setAvailableBalance(userBalance.getAvailableBalance().subtract(reservedAmount));
         userBalance.setReservedBalance(userBalance.getReservedBalance().add(reservedAmount));
 
