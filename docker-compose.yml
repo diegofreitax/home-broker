@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: home_broker_postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: home_broker
+      POSTGRES_USER: home_broker
+      POSTGRES_PASSWORD: home_broker
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+volumes:
+  postgres_data:
